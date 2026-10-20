@@ -1,0 +1,746 @@
+<title>Guia de Bolso · Próxima Fase</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Kaushan+Script&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: folhas de 1600×900 sobre um mapa de bairro (canvas). Toda folha segue o mesmo grid:
+   cabeçalho / título + linha de apoio / conteúdo em colunas iguais / rodapé fixo no pé. */
+:root{
+  --red:#D7282F; --red-deep:#A11D24; --paper:#FFFCF7; --ink:#201A19; --ink-2:#5F5452;
+  --sun:#FFC63A; --rule:#E6D8CD; --white:#FFFFFF;
+  --f-script:"Kaushan Script","Brush Script MT",cursive;
+  --f-sans:"Archivo","Arial Narrow",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1); --pop:cubic-bezier(.34,1.56,.64,1);
+  --pad-x:96px; --gap-col:40px;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{margin:0;background:var(--red-deep);color:var(--ink);font-family:var(--f-sans);overflow:hidden;-webkit-font-smoothing:antialiased;touch-action:none}
+#map{position:fixed;inset:0;width:100%;height:100%;display:block}
+#world{position:fixed;left:0;top:0;width:0;height:0;transform-origin:0 0;will-change:transform}
+
+/* ---------- folha ---------- */
+.sheet{position:absolute;left:0;top:0;width:1600px;height:900px;background:var(--paper);color:var(--ink);
+  box-shadow:0 40px 90px -30px rgba(40,0,0,.55),0 8px 20px rgba(40,0,0,.18);
+  padding:64px var(--pad-x) 64px;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;--base:0ms;transition:filter .5s}
+.sheet.red{background:var(--red);color:var(--white)}
+.sheet.ink{background:var(--ink);color:var(--paper)}
+body.index .sheet{cursor:pointer}
+body.index .sheet:hover{filter:brightness(1.06)}
+body:not(.index) .sheet:not(.cur){cursor:pointer;filter:saturate(.75) brightness(.92)}
+.idx-no{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:900 300px/1 var(--f-sans);font-variation-settings:"wdth" 125;color:var(--red);background:rgba(255,252,247,.5);opacity:0;pointer-events:none;transition:opacity .5s}
+.red .idx-no{color:var(--white);background:rgba(215,40,47,.55)}
+.ink .idx-no{color:var(--sun);background:rgba(32,26,25,.55)}
+body.index .idx-no{opacity:1}
+
+/* cabeçalho: igual em todas */
+.hd{display:flex;align-items:center;gap:28px;height:44px;font:600 16px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.red .hd,.ink .hd{color:rgba(255,255,255,.72)}
+.hd .sec{color:var(--red);display:flex;align-items:center;gap:10px}
+.hd .sec::before{content:"";width:11px;height:11px;border-radius:50%;background:currentColor}
+.red .hd .sec{color:var(--white)} .ink .hd .sec{color:var(--sun)}
+.hd .no{margin-left:auto;font:900 42px/1 var(--f-sans);font-variation-settings:"wdth" 125;letter-spacing:0;color:var(--ink)}
+.red .hd .no,.ink .hd .no{color:var(--white)}
+
+/* corpo: título, conteúdo e rodapé sempre nas mesmas posições */
+.body{flex:1;display:flex;flex-direction:column;gap:60px;margin-top:48px;min-height:0}
+.ttl{display:flex;flex-direction:column;gap:16px}
+h1,h2{margin:0;font-family:var(--f-sans);font-weight:900;font-variation-settings:"wdth" 112;letter-spacing:-.02em;text-wrap:pretty}
+h2{font-size:66px;line-height:1}
+h2 .script,h1 .script{white-space:nowrap}
+.lead{font-size:29px;line-height:1.4;color:var(--ink-2);margin:0}
+.red .lead{color:rgba(255,255,255,.86)} .ink .lead{color:rgba(255,252,247,.72)}
+.script{font-family:var(--f-script);font-weight:400;letter-spacing:0;color:var(--red)}
+.red .script{color:var(--white)} .ink .script{color:var(--sun)}
+.foot{margin-top:auto;display:flex;align-items:center}
+.key{font-size:32px;line-height:1.35;font-weight:700;font-variation-settings:"wdth" 100;margin:0}
+.key .q{color:var(--red);margin-right:.35em}
+.ink .key .q,.red .key .q{color:var(--sun)}
+.hl{box-shadow:inset 0 -.38em 0 var(--sun)}
+.ink .hl,.red .hl{box-shadow:none;color:var(--sun)}
+.note{font:600 19px/1.4 var(--f-mono);letter-spacing:.04em;color:var(--ink-2);margin:0}
+.ink .note{color:rgba(255,252,247,.6)}
+.tag{display:inline-flex;align-items:center;gap:12px;background:var(--sun);color:var(--ink);font:600 19px/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;padding:14px 18px}
+.tag::before{content:"";width:10px;height:10px;border:2px solid currentColor;border-radius:50%;flex:none}
+
+/* colunas com subgrid: títulos e textos das colunas ficam na mesma linha */
+.cols{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));column-gap:var(--gap-col);row-gap:16px;align-items:start}
+.cols>*{display:grid;grid-row:span var(--rows,3);grid-template-rows:subgrid;row-gap:16px;align-content:start}
+.cols.two-rows>*:nth-child(n+4){margin-top:44px}
+.item{border-top:3px solid var(--ink);padding-top:22px}
+.red .item{border-color:var(--white)} .ink .item{border-color:var(--sun)}
+.cols h3{margin:0;font-size:32px;line-height:1.1;font-weight:800;font-variation-settings:"wdth" 104}
+.cols p{margin:0;font-size:25px;line-height:1.42;color:var(--ink-2)}
+.ink .cols p{color:rgba(255,252,247,.72)}
+.ic{width:64px;height:64px;border-radius:50%;background:var(--red);display:grid;place-items:center}
+.ic svg{width:30px;height:30px}
+.hrow{display:flex;align-items:center;gap:14px}
+
+/* lista em linhas */
+.list{list-style:none;margin:0;padding:0;display:grid}
+.list li{display:grid;grid-template-columns:72px 1fr;padding:24px 0;border-top:2px solid var(--rule);font-size:31px;line-height:1.35;align-items:baseline}
+.list li:last-child{border-bottom:2px solid var(--rule)}
+.list .mk{font:900 26px/1 var(--f-sans);font-variation-settings:"wdth" 120;color:var(--red)}
+.ink .list li{border-color:rgba(255,255,255,.16)}
+.ink .list .mk{color:var(--sun)}
+
+/* selo */
+.stamp{--s:300px;width:var(--s);height:var(--s);border-radius:50%;background:var(--red);color:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;flex:none}
+.stamp .g{font:400 calc(var(--s)*.2)/.8 var(--f-script);transform:rotate(-8deg) translateX(-6%);display:flex;align-items:baseline;gap:.12em}
+.stamp .g small{font-size:.5em}
+.stamp .b{font:400 calc(var(--s)*.27)/.9 var(--f-script);transform:rotate(-8deg);margin-top:-.02em}
+.stamp .sp{position:absolute;right:16%;top:58%;font:700 calc(var(--s)*.09)/1 var(--f-sans)}
+.stamp .ba{font:800 calc(var(--s)*.12)/1 var(--f-sans);margin-top:.35em}
+.red .stamp{background:var(--white);color:var(--red)}
+
+/* ---------- movimento (estado de repouso = tudo visível) ---------- */
+.rv,.mask>span,.pop{transition-delay:calc(var(--base) + var(--d,0) * 75ms)}
+.rv{transition-property:opacity,transform;transition-duration:.7s,.9s;transition-timing-function:var(--ease)}
+.mask{display:block;overflow:hidden;padding-bottom:.08em;margin-bottom:-.08em}
+.mask>span{display:block;transition:transform 1s var(--ease)}
+.pop{transition:transform .9s var(--pop),opacity .4s linear}
+.draw{stroke-dasharray:1;stroke-dashoffset:0;transition:stroke-dashoffset 1.6s cubic-bezier(.6,0,.2,1);transition-delay:calc(var(--base) + var(--d,0) * 75ms)}
+.sheet.pre .rv{opacity:0;transform:translateY(28px);transition:none}
+.sheet.pre .mask>span{transform:translateY(108%);transition:none}
+.sheet.pre .pop{opacity:0;transform:scale(.35) rotate(-14deg);transition:none}
+.sheet.pre .draw{stroke-dashoffset:1;transition:none}
+/* saída: o conteúdo da folha anterior sobe e some enquanto a câmera parte */
+.sheet.out .rv,.sheet.out .pop,.sheet.out .mask>span{opacity:0;transform:translateY(-22px);transition:opacity .35s ease,transform .45s ease;transition-delay:0ms}
+.sheet.lift{animation:lift 1.3s cubic-bezier(.65,0,.35,1)}
+@keyframes lift{0%,100%{box-shadow:0 40px 90px -30px rgba(40,0,0,.55),0 8px 20px rgba(40,0,0,.18)}50%{box-shadow:0 90px 160px -30px rgba(40,0,0,.6),0 20px 40px rgba(40,0,0,.25)}}
+
+/* ---------- folhas específicas ---------- */
+/* 01 capa */
+.s-cover{padding:0;flex-direction:row}
+.s-cover .l{flex:1;padding:64px var(--pad-x);display:flex;flex-direction:column;justify-content:space-between}
+.s-cover h1{font-size:112px;white-space:nowrap;line-height:.92;font-variation-settings:"wdth" 118}
+.s-cover h1 .script{display:block;font-size:1em;line-height:1.08;margin-left:-.03em;letter-spacing:0;font-weight:400}
+.s-cover .sub{font-size:30px;line-height:1.3;margin:0;font-weight:600;font-variation-settings:"wdth" 100;max-width:640px}
+.s-cover .r{width:620px;background:var(--red);position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.s-cover .r .stamp{--s:430px;background:var(--paper);color:var(--red)}
+.s-cover .r svg{position:absolute;inset:0;width:100%;height:100%}
+.eyebrow{font:600 17px/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--red);height:44px;display:flex;align-items:center}
+
+/* 03 pinos */
+.pin svg{width:44px;height:54px}
+.cols .pin p{color:var(--ink);font-size:28px}
+
+/* 04 */
+.stat{display:flex;flex-direction:column;gap:14px}
+.big{font:900 170px/.8 var(--f-sans);font-variation-settings:"wdth" 125;letter-spacing:-.04em;color:var(--sun);font-variant-numeric:tabular-nums}
+.stat b{display:block;font-size:30px;font-weight:800}
+.s4 .cols h3{align-self:end}
+
+/* 05 */
+.duo{display:grid;grid-template-columns:minmax(0,1fr) 110px minmax(0,1fr);align-items:stretch}
+.pole{background:var(--paper);color:var(--ink);padding:48px 52px;display:flex;flex-direction:column;gap:14px}
+.pole h3{margin:0;font:400 54px/1 var(--f-script);color:var(--red)}
+.pole p{margin:0;font-size:29px;line-height:1.42}
+.loop{width:110px;height:190px;align-self:center}
+
+/* 06 editorias */
+.ed{justify-items:center;text-align:center}
+.ring{width:176px;height:176px;border-radius:50%;padding:6px;box-sizing:border-box;background:conic-gradient(from 210deg,var(--red),var(--sun),var(--red))}
+.ring div{width:100%;height:100%;border-radius:50%;background:var(--ink);border:6px solid var(--paper);box-sizing:border-box;display:grid;place-items:center}
+.ring svg{width:66px;height:66px}
+.cols .ed h3{font-size:28px}
+.cols .ed p{font-size:22px}
+
+/* 08 */
+.dot{width:16px;height:16px;border-radius:50%;background:var(--red);box-shadow:0 0 0 6px rgba(215,40,47,.16);flex:none}
+.s8 .cols h3{font-size:29px}
+
+/* 09 funil */
+.funnel{display:grid;gap:12px}
+.fn{display:grid;grid-template-columns:380px 1fr;align-items:center;padding:28px 48px;color:var(--white);background:var(--red);clip-path:polygon(0 0,100% 0,98.5% 100%,1.5% 100%)}
+.fn:nth-child(2){margin:0 3%;background:#B92228}
+.fn:nth-child(3){margin:0 6%;background:var(--ink)}
+.fn h3{margin:0;font-size:36px;font-weight:800;font-variation-settings:"wdth" 106}
+.fn p{margin:0;font-size:27px;line-height:1.35;color:rgba(255,255,255,.9)}
+
+/* 11 */
+.panel{background:var(--paper);color:var(--ink);padding:44px 52px 50px;position:relative}
+.panel .script{color:var(--red);font-size:46px;line-height:1}
+.cols .panel h3{font-size:54px;font-weight:900;font-variation-settings:"wdth" 112;line-height:1}
+.cols .panel p{font-size:27px}
+.panel .pinhead{position:absolute;top:-18px;right:40px;width:36px;height:36px;border-radius:50%;background:var(--sun);box-shadow:0 6px 12px rgba(0,0,0,.25)}
+
+/* 12 */
+.fmt{border:3px solid var(--ink);padding:40px 40px 44px}
+.fmt .ey{font:600 17px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--red)}
+.cols .fmt h3{font-size:36px;font-weight:900;font-variation-settings:"wdth" 110}
+.fmt.on{background:var(--red);border-color:var(--red);color:var(--white)}
+.cols .fmt.on p{color:rgba(255,255,255,.88)} .fmt.on .ey{color:var(--sun)}
+
+/* 13 cupom */
+.coupon{display:grid;grid-template-columns:150px minmax(0,1fr);background:var(--sun);color:var(--ink);
+  -webkit-mask:radial-gradient(circle 18px at 150px 0,transparent 98%,#000) top/100% 51% no-repeat,radial-gradient(circle 18px at 150px 100%,transparent 98%,#000) bottom/100% 51% no-repeat;
+  mask:radial-gradient(circle 18px at 150px 0,transparent 98%,#000) top/100% 51% no-repeat,radial-gradient(circle 18px at 150px 100%,transparent 98%,#000) bottom/100% 51% no-repeat}
+.cols>.coupon{display:grid;grid-template-rows:none}
+.coupon.alt{background:var(--paper)}
+.coupon .stub{border-right:4px dashed rgba(32,26,25,.35);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px}
+.coupon .stub b{font:900 56px/1 var(--f-sans);font-variation-settings:"wdth" 125}
+.coupon .stub span{font:600 13px/1.25 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;text-align:center}
+.coupon .ct{padding:44px 44px;display:flex;flex-direction:column;gap:12px}
+.cols .coupon h3{font-size:36px}
+.cols .coupon p{color:var(--ink)}
+
+/* 15 */
+.ph{height:200px;background:var(--red);position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:18px 20px;box-sizing:border-box}
+.ph svg{position:absolute;inset:0;width:100%;height:100%}
+.ph b{position:relative;font:400 44px/1 var(--f-script);color:var(--white)}
+.ph.k{background:var(--ink)} .ph.k b{color:var(--sun)}
+.ph.y{background:var(--sun)} .ph.y b{color:var(--ink)}
+
+/* 16 rota */
+.route{position:relative;flex:1;min-height:0}
+.route svg.path{position:absolute;left:0;right:0;top:0;height:200px;width:100%;overflow:visible}
+.stops{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:var(--gap-col)}
+.stop{display:flex;flex-direction:column;gap:14px}
+.stop:nth-child(1){padding-top:150px}
+.stop:nth-child(2){padding-top:80px}
+.stop:nth-child(3){padding-top:10px}
+.stop .n{width:84px;height:84px;border-radius:50%;background:var(--sun);color:var(--ink);display:grid;place-items:center;font:900 32px/1 var(--f-sans);font-variation-settings:"wdth" 120;box-shadow:0 0 0 10px rgba(255,198,58,.18)}
+.stop h3{margin:8px 0 0;font-size:36px;font-weight:900;font-variation-settings:"wdth" 108;line-height:1.05}
+.stop p{margin:0;font-size:26px;line-height:1.42;color:rgba(255,252,247,.75)}
+
+/* 17 */
+.qs li{font-weight:600;font-variation-settings:"wdth" 100;padding:18px 0}
+.qs .mk{font:400 46px/1 var(--f-script)}
+
+/* 18 fecho */
+.s-end h1{font-size:108px;line-height:.98;font-variation-settings:"wdth" 116}
+.s-end h1 .script{color:var(--sun);font-weight:400}
+.s-end .row{display:flex;align-items:flex-end;justify-content:space-between;gap:60px;margin-top:auto}
+.s-end .row p{margin:0;font-size:32px;line-height:1.42;max-width:760px;color:rgba(255,255,255,.9)}
+.s-end .stamp{--s:240px}
+.s-end .sig{font:600 16px/1 var(--f-mono);letter-spacing:.16em;text-transform:uppercase;margin-top:18px;text-align:center}
+
+/* ---------- interface ---------- */
+.bar{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;align-items:center;gap:4px;background:rgba(32,26,25,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--paper);border-radius:999px;padding:6px;z-index:5;font:600 14px/1 var(--f-mono);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.bar button{appearance:none;border:0;background:transparent;color:inherit;font:inherit;height:40px;min-width:40px;padding:0 14px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:8px;letter-spacing:.06em}
+.bar button:hover{background:rgba(255,255,255,.1)}
+.bar button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+.bar button[aria-pressed="true"]{background:var(--sun);color:var(--ink)}
+.bar .ct{padding:0 10px;font-variant-numeric:tabular-nums;letter-spacing:.08em;color:rgba(255,252,247,.8)}
+.bar svg{width:18px;height:18px}
+.prog{position:fixed;left:0;top:env(safe-area-inset-top,0px);height:4px;background:var(--sun);z-index:5;transition:width .9s var(--ease)}
+.hint{position:fixed;top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--paper);color:var(--ink);font:600 13px/1.3 var(--f-mono);padding:10px 14px;border-radius:999px;z-index:5;display:none;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.2)}
+@media (orientation:portrait) and (max-width:760px){.hint{display:block}}
+@media (max-width:520px){.bar .lbl{display:none}.bar button{padding:0 10px}}
+/* movimento reduzido no sistema: transições mais curtas, só com esmaecimento */
+@media (prefers-reduced-motion:reduce){
+  .sheet.pre .rv,.sheet.pre .mask>span,.sheet.pre .pop,.sheet.out .rv,.sheet.out .pop,.sheet.out .mask>span{transform:none}
+  .sheet.pre .mask>span{opacity:0}
+  .mask>span{transition:opacity .6s ease}
+  .sheet.lift{animation:none}
+}
+</style>
+
+<canvas id="map" aria-hidden="true"></canvas>
+<div class="prog" id="prog"></div>
+<div class="hint">Gire o celular para ver melhor</div>
+
+<main id="world" aria-live="polite">
+
+<!-- 01 -->
+<section class="sheet s-cover" aria-label="Capa">
+  <div class="l">
+    <div class="eyebrow rv" style="--d:0">Guia de Bolso · SP Bairros</div>
+    <h1><span class="mask"><span style="--d:1">Ideias para a</span></span><span class="mask"><span class="script" style="--d:3">próxima fase</span></span></h1>
+    <div style="display:grid;gap:18px">
+      <p class="sub rv" style="--d:5">Vamos falar sobre conteúdo local, audiência e novas oportunidades comerciais.</p>
+      <p class="note rv" style="--d:6">Este material serve de base para uma conversa com a equipe do Guia de Bolso SP Bairros.</p>
+    </div>
+  </div>
+  <div class="r">
+    <svg viewBox="0 0 620 900" preserveAspectRatio="none" aria-hidden="true">
+      <g fill="none" stroke="rgba(255,255,255,.22)" stroke-width="3">
+        <path class="draw" pathLength="1" style="--d:1" d="M-20 140 L640 60"/>
+        <path class="draw" pathLength="1" style="--d:2" d="M-20 330 L640 250"/>
+        <path class="draw" pathLength="1" style="--d:3" d="M-20 600 L640 520"/>
+        <path class="draw" pathLength="1" style="--d:4" d="M-20 820 L640 740"/>
+        <path class="draw" pathLength="1" style="--d:2" d="M120 -20 L180 920"/>
+        <path class="draw" pathLength="1" style="--d:3" d="M430 -20 L500 920"/>
+      </g>
+      <path class="draw" pathLength="1" style="--d:4" d="M-20 470 C160 420 260 700 640 380" fill="none" stroke="#FFC63A" stroke-width="6"/>
+    </svg>
+    <div class="stamp pop" style="--d:2"><span class="g">Guia <small>de</small></span><span class="b">Bolso</span><span class="sp">sp</span><span class="ba">Bairros</span></div>
+  </div>
+  <div class="idx-no">01</div>
+</section>
+
+<!-- 02 -->
+<section class="sheet" aria-label="Ponto de partida">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Ponto de partida</span><span class="no">02</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Por que estamos conversando sobre <span class="script">isso?</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Queremos apresentar algumas possibilidades e ouvir como vocês enxergam a próxima etapa do Guia.</p>
+    </div>
+    <div class="cols" style="--n:3">
+      <div class="item rv" style="--d:3"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></div><h3>Valorizar a história</h3><p>A presença do Guia nos bairros e a relação que ele construiu com o comércio são ativos importantes.</p></div>
+      <div class="item rv" style="--d:4"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg></div><h3>Fortalecer o digital</h3><p>Queremos criar conteúdos que as pessoas tenham vontade de acompanhar e de compartilhar.</p></div>
+      <div class="item rv" style="--d:5"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16 16"/></svg></div><h3>Explorar oportunidades</h3><p>A ideia é pensar em formatos que gerem valor para quem mora na região e para quem anuncia.</p></div>
+    </div>
+    <div class="foot rv" style="--d:7"><span class="tag">Hoje vamos discutir ideias. Os números ficam para uma próxima etapa.</span></div>
+  </div>
+  <div class="idx-no">02</div>
+</section>
+
+<!-- 03 -->
+<section class="sheet" aria-label="O que já existe">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">O que já existe</span><span class="no">03</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">O Guia já tem uma <span class="script">base importante</span></span></span></h2>
+      <p class="lead rv" style="--d:2">A proposta é aproveitar melhor o que o Guia construiu ao longo da sua trajetória.</p>
+    </div>
+    <div class="cols" style="--n:4;--rows:2">
+      <div class="item pin rv" style="--d:3"><svg viewBox="0 0 40 48" aria-hidden="true"><path d="M20 46s16-15 16-27a16 16 0 0 0-32 0c0 12 16 27 16 27z" fill="#D7282F"/><circle cx="20" cy="19" r="6" fill="#FFFCF7"/></svg><p>O Guia está no impresso e mantém relacionamento com estabelecimentos da região.</p></div>
+      <div class="item pin rv" style="--d:4"><svg viewBox="0 0 40 48" aria-hidden="true"><path d="M20 46s16-15 16-27a16 16 0 0 0-32 0c0 12 16 27 16 27z" fill="#D7282F"/><circle cx="20" cy="19" r="6" fill="#FFFCF7"/></svg><p>A equipe conhece bem o comércio e a rotina dos bairros.</p></div>
+      <div class="item pin rv" style="--d:5"><svg viewBox="0 0 40 48" aria-hidden="true"><path d="M20 46s16-15 16-27a16 16 0 0 0-32 0c0 12 16 27 16 27z" fill="#D7282F"/><circle cx="20" cy="19" r="6" fill="#FFFCF7"/></svg><p>O Guia pode conectar os moradores a serviços, histórias e benefícios.</p></div>
+      <div class="item pin rv" style="--d:6"><svg viewBox="0 0 40 48" aria-hidden="true"><path d="M20 46s16-15 16-27a16 16 0 0 0-32 0c0 12 16 27 16 27z" fill="#FFC63A"/><circle cx="20" cy="19" r="6" fill="#201A19"/></svg><p>Existe um acervo e uma trajetória familiar que merecem ser conhecidos e documentados.</p></div>
+    </div>
+    <div class="foot rv" style="--d:8"><span class="tag">A confirmar: histórico da família e ligação com o Mapograf</span></div>
+  </div>
+  <div class="idx-no">03</div>
+</section>
+
+<!-- 04 -->
+<section class="sheet ink s4" aria-label="Diagnóstico digital">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Diagnóstico digital</span><span class="no">04</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">O Instagram ainda tem <span class="script">espaço para crescer</span></span></span></h2>
+      <p class="lead rv" style="--d:2">No levantamento, o perfil aparece com muitos anúncios e pouco conteúdo próprio.</p>
+    </div>
+    <div class="cols" style="--n:3;--rows:2">
+      <div class="item rv" style="--d:3"><div class="stat"><span class="big" data-count="683">683</span><b>seguidores</b></div><p class="note">Base observada no levantamento de 16/10/2026.</p></div>
+      <div class="item rv" style="--d:4"><h3>Pouca interação</h3><p>Os posts analisados tinham uma ou duas curtidas e nenhum comentário.</p></div>
+      <div class="item rv" style="--d:5"><h3>Feed comercial</h3><p>A maior parte das publicações são materiais enviados pelos anunciantes.</p></div>
+    </div>
+    <div class="foot rv" style="--d:7"><p class="key"><span class="q">→</span>Para crescer, o perfil precisa dar ao morador <span class="hl">motivos para voltar.</span></p></div>
+  </div>
+  <div class="idx-no">04</div>
+</section>
+
+<!-- 05 -->
+<section class="sheet red" aria-label="Mudança de foco">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Mudança de foco</span><span class="no">05</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">O que queremos <span class="script">construir</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Queremos um Guia que faça parte do dia a dia de quem vive e circula pelos bairros.</p>
+    </div>
+    <div class="duo">
+      <div class="pole rv" style="--d:3"><h3>Para os moradores</h3><p>O morador encontra informação útil, descobertas, agenda local, histórias e vantagens reais.</p></div>
+      <svg class="loop" viewBox="0 0 110 190" fill="none" stroke="#FFC63A" stroke-width="5" stroke-linecap="round" aria-hidden="true">
+        <path class="draw" pathLength="1" style="--d:5" d="M10 58 C38 10 74 10 100 50"/><path class="draw" pathLength="1" style="--d:6" d="M88 48 L100 50 L102 36"/>
+        <path class="draw" pathLength="1" style="--d:6" d="M100 132 C74 180 38 180 12 140"/><path class="draw" pathLength="1" style="--d:7" d="M24 142 L12 140 L10 154"/>
+      </svg>
+      <div class="pole rv" style="--d:4"><h3>Para os comerciantes</h3><p>O comerciante apresenta seu negócio às pessoas certas e participa da comunidade local.</p></div>
+    </div>
+    <div class="foot rv" style="--d:8"><p class="key"><span class="q">→</span>Quando o Guia é útil para o morador, ele também ganha <span class="hl">relevância para o anunciante.</span></p></div>
+  </div>
+  <div class="idx-no">05</div>
+</section>
+
+<!-- 06 -->
+<section class="sheet" aria-label="Conteúdo e identidade">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Conteúdo e identidade</span><span class="no">06</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Que conteúdo faz alguém <span class="script">seguir o Guia?</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Estas editorias podem criar o hábito de leitura e aproximar o perfil da região.</p>
+    </div>
+    <div class="cols" style="--n:6;--gap-col:24px">
+      <div class="ed pop" style="--d:3"><div class="ring"><div><svg viewBox="0 0 24 24" fill="none" stroke="#FFC63A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div></div><h3>Acontece no Bairro</h3><p>Traz a agenda, as inaugurações e as novidades.</p></div>
+      <div class="ed pop" style="--d:4"><div class="ring"><div><svg viewBox="0 0 24 24" fill="none" stroke="#FFC63A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z"/></svg></div></div><h3>Histórias da Vila</h3><p>Conta a memória do bairro, dos moradores e do comércio antigo.</p></div>
+      <div class="ed pop" style="--d:5"><div class="ring"><div><svg viewBox="0 0 24 24" fill="none" stroke="#FFC63A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h12v4a6 6 0 0 1-12 0zM17 10h1.5a2 2 0 0 1 0 4H17M8 3.5v2.5M12 3.5v2.5"/></svg></div></div><h3>Guia Experimenta</h3><p>A equipe visita lugares e mostra o que descobriu.</p></div>
+      <div class="ed pop" style="--d:6"><div class="ring"><div><svg viewBox="0 0 24 24" fill="none" stroke="#FFC63A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.3"/><path d="M3 20a5 5 0 0 1 10 0M12.5 20a4 4 0 0 1 8 0"/></svg></div></div><h3>Bairro em Família</h3><p>Reúne a programação para crianças e famílias.</p></div>
+      <div class="ed pop" style="--d:7"><div class="ring"><div><svg viewBox="0 0 24 24" fill="none" stroke="#FFC63A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9H3zM9.5 20v-5.5h5V20"/></svg></div></div><h3>Vida de Bairro</h3><p>Dá dicas práticas de serviços e de lazer.</p></div>
+      <div class="ed pop" style="--d:8"><div class="ring"><div><svg viewBox="0 0 24 24" fill="none" stroke="#FFC63A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4z"/><path d="M14 7v10" stroke-dasharray="2 2"/></svg></div></div><h3>Achados do Guia</h3><p>Divulga benefícios, ofertas e cupons.</p></div>
+    </div>
+  </div>
+  <div class="idx-no">06</div>
+</section>
+
+<!-- 07 -->
+<section class="sheet" aria-label="Posicionamento editorial">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Posicionamento editorial</span><span class="no">07</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Como organizar essa <span class="script">presença digital</span></span></span></h2>
+      <p class="lead rv" style="--d:2">O conteúdo precisa ter uma identidade fácil de reconhecer e uma curadoria consistente.</p>
+    </div>
+    <ul class="list">
+      <li class="rv" style="--d:3"><span class="mk">01</span><span>Definir editorias fixas e um calendário simples de publicação.</span></li>
+      <li class="rv" style="--d:4"><span class="mk">02</span><span>Produzir Reels e fotos com a linguagem e a identidade do Guia.</span></li>
+      <li class="rv" style="--d:5"><span class="mk">03</span><span>Mostrar as pessoas, as histórias e os bastidores dos bairros.</span></li>
+      <li class="rv" style="--d:6"><span class="mk">04</span><span>Deixar claro para o leitor quando um conteúdo é patrocinado.</span></li>
+      <li class="rv" style="--d:7"><span class="mk">05</span><span>Encaixar os anúncios em uma experiência editorial que seja útil para quem lê.</span></li>
+    </ul>
+  </div>
+  <div class="idx-no">07</div>
+</section>
+
+<!-- 08 -->
+<section class="sheet s8" aria-label="Audiência">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Audiência</span><span class="no">08</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Como aumentar o alcance entre <span class="script">moradores</span></span></span></h2>
+      <p class="lead rv" style="--d:2">A prioridade é chegar a quem mora, trabalha e consome na região.</p>
+    </div>
+    <div class="cols two-rows" style="--n:3;--rows:2">
+      <div class="rv" style="--d:3"><h3 class="hrow"><span class="dot"></span>Conteúdo compartilhável</h3><p>Roteiros, agenda e dicas locais são conteúdos que as pessoas gostam de enviar para os amigos.</p></div>
+      <div class="rv" style="--d:4"><h3 class="hrow"><span class="dot"></span>Parcerias locais</h3><p>O Guia pode publicar em conjunto com estabelecimentos e criadores da região.</p></div>
+      <div class="rv" style="--d:5"><h3 class="hrow"><span class="dot"></span>Impulsionamento geográfico</h3><p>As campanhas pagas podem ser direcionadas apenas aos bairros atendidos.</p></div>
+      <div class="rv" style="--d:6"><h3 class="hrow"><span class="dot"></span>Impresso conectado</h3><p>QR Codes no impresso levam o leitor a conteúdos e benefícios.</p></div>
+      <div class="rv" style="--d:7"><h3 class="hrow"><span class="dot"></span>Comunidades locais</h3><p>Vale participar de forma útil dos grupos e canais do bairro.</p></div>
+      <div class="rv" style="--d:8"><h3 class="hrow"><span class="dot"></span>Participação do morador</h3><p>O morador pode enviar sugestões, histórias e indicações e responder enquetes.</p></div>
+    </div>
+  </div>
+  <div class="idx-no">08</div>
+</section>
+
+<!-- 09 -->
+<section class="sheet" aria-label="Medição">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Medição</span><span class="no">09</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Como saber se estamos chegando às <span class="script">pessoas certas?</span></span></span></h2>
+      <p class="lead rv" style="--d:2">O número de seguidores é um indicador, mas também precisamos observar como a audiência local se comporta.</p>
+    </div>
+    <div class="funnel">
+      <div class="fn rv" style="--d:3"><h3>Alcance qualificado</h3><p>Mede quantas pessoas da região veem os conteúdos.</p></div>
+      <div class="fn rv" style="--d:4"><h3>Interesse</h3><p>Mostra quais temas geram compartilhamentos, salvamentos e visitas.</p></div>
+      <div class="fn rv" style="--d:5"><h3>Ação</h3><p>Conta quem acessa os links, usa cupons ou procura um negócio.</p></div>
+    </div>
+    <div class="foot rv" style="--d:7"><p class="key"><span class="q">→</span>A medição deve mostrar o que funciona <span class="hl">para moradores e anunciantes.</span></p></div>
+  </div>
+  <div class="idx-no">09</div>
+</section>
+
+<!-- 10 -->
+<section class="sheet ink" aria-label="Anunciantes">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Anunciantes</span><span class="no">10</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Como atrair novos <span class="script">anunciantes</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Com uma audiência mais relevante, o Guia pode oferecer formatos que façam sentido para cada negócio.</p>
+    </div>
+    <ul class="list">
+      <li class="rv" style="--d:3"><span class="mk">01</span><span>Conversar com os anunciantes atuais para entender o que eles valorizam no Guia.</span></li>
+      <li class="rv" style="--d:4"><span class="mk">02</span><span>Mapear os segmentos e os estabelecimentos novos nos bairros.</span></li>
+      <li class="rv" style="--d:5"><span class="mk">03</span><span>Apresentar formatos de divulgação ligados aos objetivos reais de cada negócio.</span></li>
+      <li class="rv" style="--d:6"><span class="mk">04</span><span>Criar oportunidades em datas e temas importantes para o comércio.</span></li>
+      <li class="rv" style="--d:7"><span class="mk">05</span><span>Usar os resultados das primeiras ações para melhorar o material comercial.</span></li>
+    </ul>
+  </div>
+  <div class="idx-no">10</div>
+</section>
+
+<!-- 11 -->
+<section class="sheet red" aria-label="Oportunidades comerciais">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Oportunidades comerciais</span><span class="no">11</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Presença contínua e <span class="script">campanhas locais</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Existem dois caminhos para ampliar as opções de divulgação.</p>
+    </div>
+    <div class="cols" style="--n:2">
+      <div class="panel pop" style="--d:3"><span class="pinhead"></span><span class="script">Plano</span><h3>Vizinho</h3><p>É uma presença recorrente que combina o impresso com formatos digitais, o mapa do bairro e benefícios para o consumidor.</p></div>
+      <div class="panel pop" style="--d:4"><span class="pinhead"></span><span class="script">Campanhas</span><h3>Geolocalizadas</h3><p>São ações pontuais para inaugurações, datas comerciais, lançamentos ou novidades de um estabelecimento.</p></div>
+    </div>
+    <div class="foot rv" style="--d:6"><span class="tag">Formatos conceituais: escopo e valores serão definidos depois</span></div>
+  </div>
+  <div class="idx-no">11</div>
+</section>
+
+<!-- 12 -->
+<section class="sheet" aria-label="Novos formatos">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Novos formatos</span><span class="no">12</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Conteúdos que também podem virar <span class="script">produtos</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Estas ideias têm potencial de patrocínio e abrem espaço para a participação de negócios locais.</p>
+    </div>
+    <div class="cols" style="--n:3">
+      <div class="fmt rv" style="--d:3"><span class="ey">Novidades</span><h3>Abriu no Bairro</h3><p>Apresenta novos estabelecimentos, serviços e experiências.</p></div>
+      <div class="fmt on rv" style="--d:4"><span class="ey">Curadoria</span><h3>Roteiros do Bairro</h3><p>Reúne seleções de cafés, restaurantes, passeios, pets e outros temas.</p></div>
+      <div class="fmt rv" style="--d:5"><span class="ey">Acervo</span><h3>Memória das Ruas</h3><p>Conta histórias antigas e mudanças dos bairros a partir do acervo, com espaço para patrocinadores.</p></div>
+    </div>
+    <div class="foot rv" style="--d:7"><p class="key"><span class="q">→</span>Esses formatos podem aproximar o <span class="hl">conteúdo editorial das marcas locais.</span></p></div>
+  </div>
+  <div class="idx-no">12</div>
+</section>
+
+<!-- 13 -->
+<section class="sheet ink" aria-label="Benefícios">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Benefícios</span><span class="no">13</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Um clube de benefícios para os <span class="script">vizinhos</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Cupons e vantagens podem estimular visitas e ajudar a entender o que interessa aos moradores.</p>
+    </div>
+    <div class="cols" style="--n:2;--rows:1">
+      <div class="coupon pop" style="--d:3"><div class="stub"><b>1º</b><span>Primeiro<br>passo</span></div><div class="ct"><h3>Cupons com QR Code</h3><p>Os cupons aparecem no impresso e no digital, têm QR Code e são validados nos estabelecimentos.</p></div></div>
+      <div class="coupon alt pop" style="--d:4"><div class="stub"><b>2º</b><span>Possível<br>evolução</span></div><div class="ct"><h3>Página por bairro</h3><p>Mais adiante, uma página pode reunir por bairro as ofertas, os benefícios e os comerciantes participantes.</p></div></div>
+    </div>
+    <div class="foot rv" style="--d:6"><p class="key"><span class="q">→</span>Começar com uma experiência simples ajuda a <span class="hl">testar a adesão.</span></p></div>
+  </div>
+  <div class="idx-no">13</div>
+</section>
+
+<!-- 14 -->
+<section class="sheet" aria-label="Novas possibilidades">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Novas possibilidades</span><span class="no">14</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Produtos que merecem ser <span class="script">explorados</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Algumas ideias podem ser testadas de acordo com a estrutura e o interesse do Guia.</p>
+    </div>
+    <div class="cols" style="--n:4;--rows:2">
+      <div class="item rv" style="--d:3"><h3>Edições especiais</h3><p>Cada edição pode tratar de um tema, como gastronomia, saúde, pets, datas comemorativas ou serviços locais.</p></div>
+      <div class="item rv" style="--d:4"><h3>Guia de Boas-Vindas</h3><p>Quem acabou de se mudar recebe um material feito com apoio de parceiros da região.</p></div>
+      <div class="item rv" style="--d:5"><h3>Mapa digital do bairro</h3><p>O morador usa uma página para descobrir estabelecimentos, conteúdos e benefícios.</p></div>
+      <div class="item rv" style="--d:6"><h3>Rede de pontos parceiros</h3><p>Alguns locais ajudam a distribuir o Guia e a divulgar as suas ações.</p></div>
+    </div>
+  </div>
+  <div class="idx-no">14</div>
+</section>
+
+<!-- 15 -->
+<section class="sheet" aria-label="Experiências">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Experiências</span><span class="no">15</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">O Guia também pode estar presente <span class="script">nas ruas</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Encontros e ações locais podem aproximar moradores e marcas.</p>
+    </div>
+    <div class="cols" style="--n:3">
+      <div class="rv" style="--d:3"><div class="ph"><svg viewBox="0 0 300 150" preserveAspectRatio="none" aria-hidden="true"><path class="draw" pathLength="1" style="--d:5" d="M-10 120 C60 40 120 140 170 70 S260 30 310 55" fill="none" stroke="#FFC63A" stroke-width="4"/><circle cx="170" cy="70" r="8" fill="#FFC63A"/><circle cx="62" cy="84" r="6" fill="#fff"/><circle cx="262" cy="44" r="6" fill="#fff"/></svg><b>sabores</b></div><h3>Circuito gastronômico</h3><p>Cafés, restaurantes e outros estabelecimentos participam de uma programação conjunta.</p></div>
+      <div class="rv" style="--d:4"><div class="ph k"><svg viewBox="0 0 300 150" aria-hidden="true"><g fill="none" stroke="rgba(255,255,255,.25)" stroke-width="2"><rect x="20" y="16" width="260" height="96"/><path d="M20 48h260M20 80h260M57 16v96M94 16v96M131 16v96M168 16v96M205 16v96M242 16v96"/></g><g fill="#FFC63A"><rect x="58" y="49" width="35" height="30"/><rect x="95" y="49" width="35" height="30"/><rect x="132" y="49" width="35" height="30"/><rect x="169" y="49" width="35" height="30"/><rect x="206" y="49" width="35" height="30"/></g></svg><b>7 dias</b></div><h3>Semana do Bairro</h3><p>Durante uma semana, o bairro reúne ofertas, atividades e conteúdos em uma campanha.</p></div>
+      <div class="rv" style="--d:5"><div class="ph y"><svg viewBox="0 0 300 150" aria-hidden="true"><g fill="#D7282F"><circle cx="70" cy="62" r="24"/><circle cx="130" cy="48" r="18"/><circle cx="182" cy="66" r="28"/><circle cx="240" cy="50" r="16"/></g></svg><b>encontros</b></div><h3>Encontros locais</h3><p>O Guia organiza pequenas experiências em parceria com espaços da região.</p></div>
+    </div>
+    <div class="foot rv" style="--d:7"><p class="note">Cada iniciativa precisa ser avaliada com os parceiros antes de avançar.</p></div>
+  </div>
+  <div class="idx-no">15</div>
+</section>
+
+<!-- 16 -->
+<section class="sheet ink" aria-label="Caminho possível">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Caminho possível</span><span class="no">16</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">Como essas ideias poderiam <span class="script">evoluir</span></span></span></h2>
+      <p class="lead rv" style="--d:2">Esta sequência serve para orientar a conversa. Investimentos e prazos ficam para depois desta reunião.</p>
+    </div>
+    <div class="route">
+      <svg class="path" viewBox="0 0 1408 200" preserveAspectRatio="none" aria-hidden="true">
+        <path class="draw" pathLength="1" style="--d:3" d="M42 192 C250 196 300 124 491 122 S760 54 940 52 S1260 20 1408 4" fill="none" stroke="#FFC63A" stroke-width="5"/>
+      </svg>
+      <div class="stops">
+        <div class="stop"><span class="n pop" style="--d:4">01</span><h3 class="rv" style="--d:5">Construir audiência</h3><p class="rv" style="--d:5">Trabalhar a identidade, as editorias, o conteúdo e o alcance nos bairros.</p></div>
+        <div class="stop"><span class="n pop" style="--d:6">02</span><h3 class="rv" style="--d:7">Testar produtos</h3><p class="rv" style="--d:7">Colocar formatos digitais e comerciais à prova com parceiros interessados.</p></div>
+        <div class="stop"><span class="n pop" style="--d:8">03</span><h3 class="rv" style="--d:9">Ampliar possibilidades</h3><p class="rv" style="--d:9">Incluir benefícios, experiências e um portal, e levar o Guia a outros bairros.</p></div>
+      </div>
+    </div>
+  </div>
+  <div class="idx-no">16</div>
+</section>
+
+<!-- 17 -->
+<section class="sheet" aria-label="Para conversarmos">
+  <header class="hd rv"><span>Guia de Bolso / Ideias para conversar</span><span class="sec">Para conversarmos</span><span class="no">17</span></header>
+  <div class="body">
+    <div class="ttl">
+      <h2><span class="mask"><span style="--d:1">O que gostaríamos de entender <span class="script">com vocês</span></span></span></h2>
+      <p class="lead rv" style="--d:2">As respostas ajudam a escolher quais ideias vale a pena aprofundar.</p>
+    </div>
+    <ol class="list qs">
+      <li class="rv" style="--d:3"><span class="mk script">?</span><span>Quais formatos vocês enxergam como mais interessantes para o Guia?</span></li>
+      <li class="rv" style="--d:4"><span class="mk script">?</span><span>O que os anunciantes mais valorizam hoje?</span></li>
+      <li class="rv" style="--d:5"><span class="mk script">?</span><span>Que tipo de conteúdo vocês gostariam de produzir?</span></li>
+      <li class="rv" style="--d:6"><span class="mk script">?</span><span>Quais bairros e públicos são prioritários para o negócio?</span></li>
+      <li class="rv" style="--d:7"><span class="mk script">?</span><span>Que experiências anteriores funcionaram melhor?</span></li>
+    </ol>
+  </div>
+  <div class="idx-no">17</div>
+</section>
+
+<!-- 18 -->
+<section class="sheet red s-end" aria-label="A próxima conversa">
+  <header class="hd rv"><span class="sec">A próxima conversa</span><span class="no">18</span></header>
+  <div class="body">
+    <h1><span class="mask"><span style="--d:1">Quais dessas ideias</span></span><span class="mask"><span style="--d:2"><span class="script">fazem sentido</span> para vocês?</span></span></h1>
+    <div class="row">
+      <p class="rv" style="--d:5">Depois desta conversa, podemos escolher as prioridades e levantar os dados necessários para planejar cada iniciativa.</p>
+      <div>
+        <div class="stamp pop" style="--d:4"><span class="g">Guia <small>de</small></span><span class="b">Bolso</span><span class="sp">sp</span><span class="ba">Bairros</span></div>
+        <div class="sig rv" style="--d:6">Guia de Bolso SP Bairros</div>
+      </div>
+    </div>
+  </div>
+  <div class="idx-no">18</div>
+</section>
+
+</main>
+
+<nav class="bar" aria-label="Navegação">
+  <button id="prev" aria-label="Slide anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <span class="ct" id="ct">01 / 18</span>
+  <button id="next" aria-label="Próximo slide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg></button>
+  <button id="idx" aria-pressed="false" aria-label="Índice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="lbl">Índice</span></button>
+  <button id="fs" aria-label="Tela cheia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</nav>
+
+<script>
+(()=>{
+const W=1600,H=900,GX=2050,GY=1380,COLS=6;
+const world=document.getElementById('world');
+const sheets=[...document.querySelectorAll('.sheet')];
+const N=sheets.length;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const rots=[-2.2,1.4,-0.8,2,-1.6,0.9,1.8,-1.2,0.6,-2,1.3,-0.7,2.1,-1.4,0.8,-1.8,1.1,-0.5];
+const jit=[[0,0],[40,-70],[-30,60],[60,20],[-50,-40],[20,80],[30,-50],[-60,30],[50,60],[-20,-60],[70,10],[-40,50],[20,-30],[-70,40],[40,70],[-30,-50],[60,-20],[0,40]];
+const pos=sheets.map((s,i)=>{
+  const r=Math.floor(i/COLS);let c=i%COLS;if(r%2)c=COLS-1-c;
+  const x=c*GX+jit[i][0], y=r*GY+jit[i][1], a=rots[i]||0;
+  s.style.transform=`translate(${x}px,${y}px) rotate(${a}deg)`;
+  return {cx:x+W/2,cy:y+H/2,a};
+});
+const B={x0:Math.min(...pos.map(p=>p.cx))-W/2-300,x1:Math.max(...pos.map(p=>p.cx))+W/2+300,y0:Math.min(...pos.map(p=>p.cy))-H/2-300,y1:Math.max(...pos.map(p=>p.cy))+H/2+300};
+
+let cur=0,mode='present',cam=null,anim=null,raf=0,outT=0;
+const vw=()=>innerWidth, vh=()=>innerHeight;
+function camFor(i){const k=Math.min(vw()/W,(vh()-70)/H)*0.9;return {cx:pos[i].cx,cy:pos[i].cy,a:pos[i].a,k,oy:-26}}
+function camIndex(){const k=Math.min(vw()/(B.x1-B.x0),(vh()-80)/(B.y1-B.y0));return {cx:(B.x0+B.x1)/2,cy:(B.y0+B.y1)/2,a:0,k,oy:-30}}
+const T=c=>`translate(${vw()/2}px,${vh()/2+c.oy}px) scale(${c.k}) rotate(${-c.a}deg) translate(${-c.cx}px,${-c.cy}px)`;
+
+/* câmera: afasta, gira e aproxima. Com movimento reduzido no sistema, faz um trajeto curto e direto. */
+function fly(to,dur,arc){
+  if(anim){anim.cancel();anim=null}
+  const from=cam||to; cam=to;
+  world.style.transform=T(to);
+  if(!dur){draw();return}
+  if(reduce){dur=Math.min(dur,700);arc=false}
+  const d=Math.hypot(to.cx-from.cx,to.cy-from.cy);
+  const frames=[{transform:T(from)}];
+  if(arc&&d>10){const m={cx:(from.cx+to.cx)/2,cy:(from.cy+to.cy)/2,a:(from.a+to.a)/2,k:Math.min(from.k,to.k)*(d>GX*1.5?0.55:0.7),oy:(from.oy+to.oy)/2};frames.push({transform:T(m)})}
+  frames.push({transform:T(to)});
+  anim=world.animate(frames,{duration:dur,easing:'cubic-bezier(.65,0,.35,1)'});
+  const loop=()=>{draw();if(anim&&anim.playState==='running')raf=requestAnimationFrame(loop)};
+  cancelAnimationFrame(raf);loop();
+  anim.onfinish=()=>{anim=null;draw()};
+}
+
+function reveal(i,base){
+  const s=sheets[i];
+  s.classList.remove('out');
+  s.style.setProperty('--base',base+'ms');
+  s.classList.add('pre');void s.offsetWidth;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>s.classList.remove('pre')));
+  s.classList.remove('lift');void s.offsetWidth;s.classList.add('lift');
+  const c=s.querySelector('[data-count]');
+  if(c){const n=+c.dataset.count;c.textContent='0';setTimeout(()=>{const t0=performance.now();const st=t=>{const p=Math.min(1,(t-t0)/1300);c.textContent=Math.round(n*(1-Math.pow(1-p,4)));if(p<1)requestAnimationFrame(st)};requestAnimationFrame(st)},base+150)}
+}
+function leave(i){
+  const s=sheets[i];if(!s)return;
+  s.classList.remove('pre');s.classList.add('out');
+  clearTimeout(outT);outT=setTimeout(()=>sheets.forEach(x=>{if(!x.classList.contains('cur'))x.classList.remove('out')}),1500);
+}
+
+const ct=document.getElementById('ct'),prog=document.getElementById('prog'),ib=document.getElementById('idx');
+function ui(){ct.textContent=String(cur+1).padStart(2,'0')+' / '+N;prog.style.width=((cur+1)/N*100)+'%';sheets.forEach((s,i)=>{s.classList.toggle('cur',i===cur);s.setAttribute('aria-hidden',i===cur||mode==='index'?'false':'true')});ib.setAttribute('aria-pressed',mode==='index')}
+
+function go(i,opts={}){
+  i=Math.max(0,Math.min(N-1,i));
+  const fromIndex=mode==='index';
+  const prev=cur;
+  mode='present';document.body.classList.remove('index');
+  const changed=i!==cur||fromIndex||opts.force;
+  cur=i;ui();
+  if(!changed)return;
+  if(!fromIndex&&prev!==i)leave(prev);
+  const dur=opts.instant?0:(fromIndex?1100:1300);
+  fly(camFor(i),dur,!fromIndex);
+  reveal(i,opts.instant?120:(reduce?450:(fromIndex?650:760)));
+  try{history.replaceState(null,'','#p'+(i+1))}catch(e){}
+}
+function toggleIndex(){
+  if(mode==='index'){go(cur,{force:true});return}
+  mode='index';document.body.classList.add('index');ui();
+  sheets.forEach(s=>s.classList.remove('pre','out'));
+  fly(camIndex(),1100,false);
+}
+
+document.getElementById('prev').onclick=()=>go(cur-1);
+document.getElementById('next').onclick=()=>go(cur+1);
+ib.onclick=toggleIndex;
+document.getElementById('fs').onclick=()=>{const d=document;try{if(d.fullscreenElement)d.exitFullscreen();else d.documentElement.requestFullscreen().catch(()=>{})}catch(e){}};
+sheets.forEach((s,i)=>s.addEventListener('click',()=>{if(mode==='index'||i!==cur)go(i)}));
+addEventListener('keydown',e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  const k=e.key;
+  if(['ArrowRight','PageDown',' ','Enter'].includes(k)){e.preventDefault();if(mode==='index')go(cur);else go(cur+1)}
+  else if(['ArrowLeft','PageUp','Backspace'].includes(k)){e.preventDefault();go(cur-1)}
+  else if(k==='Home')go(0);else if(k==='End')go(N-1);
+  else if(k==='i'||k==='I'||k==='o'||k==='O'||k==='Escape')toggleIndex();
+  else if(k==='f'||k==='F')document.getElementById('fs').click();
+});
+let tx=null,ty=null;
+addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+addEventListener('touchend',e=>{if(tx==null)return;const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy))go(cur+(dx<0?1:-1));tx=null},{passive:true});
+
+/* ---------- mapa em canvas ---------- */
+const cv=document.getElementById('map'),ctx=cv.getContext('2d');
+let dpr=1;
+function seeded(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const R=seeded(1554);
+const X0=B.x0-3000,X1=B.x1+3000,Y0=B.y0-3000,Y1=B.y1+3000,CX=(X0+X1)/2,CY=(Y0+Y1)/2,L=Math.hypot(X1-X0,Y1-Y0);
+function family(angle,minS,maxS){const out=[];const a=angle*Math.PI/180,dx=Math.cos(a),dy=Math.sin(a),nx=-dy,ny=dx;for(let o=-L/2;o<L/2;o+=minS+R()*(maxS-minS)){const px=CX+nx*o,py=CY+ny*o;out.push([px-dx*L/2,py-dy*L/2,px+dx*L/2,py+dy*L/2])}return out}
+const streets=[...family(12,300,560),...family(102,320,620)];
+const diag=family(-36,1500,2600);
+const avenues=[
+  {n:'R. DOMINGOS DE MORAIS',p:[[X0,B.y0+900],[4000,1500],[9000,700],[X1,1400]]},
+  {n:'R. VERGUEIRO',p:[[X0,2900],[3500,2500],[8000,3300],[X1,2700]]},
+  {n:'AV. SENA MADUREIRA',p:[[2200,Y0],[2800,1800],[1900,3800],[2600,Y1]]},
+  {n:'R. JOAQUIM TÁVORA',p:[[7900,Y0],[7200,1600],[8100,3600],[7600,Y1]]},
+  {n:'AV. CONS. RODRIGUES ALVES',p:[[X0,4600],[5000,4100],[10000,4900],[X1,4300]]},
+  {n:'R. FRANÇA PINTO',p:[[11600,Y0],[12300,2000],[11400,Y1]]},
+];
+const metro={p:[[X0,350],[3000,800],[6500,250],[10500,900],[X1,450]],st:[['ANA ROSA',2600,735],['VILA MARIANA',6500,250],['SANTA CRUZ',10400,880]]};
+function curve(p){ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length-1;i++){const mx=(p[i][0]+p[i+1][0])/2,my=(p[i][1]+p[i+1][1])/2;ctx.quadraticCurveTo(p[i][0],p[i][1],mx,my)}const l=p[p.length-1];ctx.lineTo(l[0],l[1])}
+function draw(){
+  const w=cv.width,h=cv.height;
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#A11D24';ctx.fillRect(0,0,w,h);
+  const m=new DOMMatrixReadOnly(getComputedStyle(world).transform);
+  const k=Math.hypot(m.a,m.b)||1;
+  ctx.setTransform(m.a*dpr,m.b*dpr,m.c*dpr,m.d*dpr,m.e*dpr,m.f*dpr);
+  const px=v=>Math.max(v,0.7/k);
+  ctx.lineCap='round';
+  ctx.strokeStyle='rgba(255,255,255,.07)';ctx.lineWidth=px(10);ctx.beginPath();for(const s of streets){ctx.moveTo(s[0],s[1]);ctx.lineTo(s[2],s[3])}ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.10)';ctx.lineWidth=px(16);ctx.beginPath();for(const s of diag){ctx.moveTo(s[0],s[1]);ctx.lineTo(s[2],s[3])}ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.16)';ctx.lineWidth=px(34);for(const a of avenues){curve(a.p);ctx.stroke()}
+  ctx.strokeStyle='rgba(32,26,25,.35)';ctx.lineWidth=px(22);ctx.setLineDash([90,50]);curve(metro.p);ctx.stroke();ctx.setLineDash([]);
+  const fs=Math.max(54,11/k);
+  ctx.font=`700 ${fs}px Archivo, Arial, sans-serif`;ctx.textBaseline='middle';
+  for(const a of avenues){const p1=a.p[1],p2=a.p[2];const ang=Math.atan2(p2[1]-p1[1],p2[0]-p1[0]);const fl=Math.abs(ang)>Math.PI/2;ctx.save();ctx.translate(p1[0]+(p2[0]-p1[0])*.18,p1[1]+(p2[1]-p1[1])*.18);ctx.rotate(fl?ang+Math.PI:ang);ctx.fillStyle='rgba(255,255,255,.34)';ctx.fillText(a.n,0,-fs*.9);ctx.restore()}
+  for(const s of metro.st){ctx.beginPath();ctx.arc(s[1],s[2],px(46),0,7);ctx.fillStyle='#201A19';ctx.fill();ctx.lineWidth=px(14);ctx.strokeStyle='rgba(255,255,255,.55)';ctx.stroke();ctx.fillStyle='rgba(255,255,255,.5)';ctx.font=`600 ${fs*.8}px "IBM Plex Mono", monospace`;ctx.fillText('METRÔ '+s[0],s[1]+80,s[2]+5)}
+  ctx.strokeStyle='rgba(255,198,58,.75)';ctx.lineWidth=px(12);ctx.setLineDash([46,36]);ctx.beginPath();pos.forEach((p,i)=>i?ctx.lineTo(p.cx,p.cy):ctx.moveTo(p.cx,p.cy));ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#FFC63A';for(const p of pos){ctx.beginPath();ctx.arc(p.cx,p.cy,px(26),0,7);ctx.fill()}
+}
+function resize(){dpr=Math.min(devicePixelRatio||1,2);cv.width=Math.round(vw()*dpr);cv.height=Math.round(vh()*dpr);if(anim){anim.cancel();anim=null}cam=mode==='index'?camIndex():camFor(cur);world.style.transform=T(cam);draw()}
+addEventListener('resize',resize);
+
+const h=(location.hash.match(/^#p(\d+)$/)||[])[1];
+cur=h?Math.max(0,Math.min(N-1,h-1)):0;
+resize();ui();reveal(cur,150);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(draw);
+})();
+</script>
