@@ -1,3 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Guia de Bolso SP Bairros - ideias para a proxima fase.">
+<style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
 <title>Guia de Bolso · Próxima Fase</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -224,6 +238,19 @@ h2 .script,h1 .script{white-space:nowrap}
 .bar button:hover{background:rgba(255,255,255,.1)}
 .bar button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
 .bar button[aria-pressed="true"]{background:var(--sun);color:var(--ink)}
+.bar button[disabled]{opacity:.55;cursor:progress}
+.bar button[disabled]:hover{background:transparent}
+.bar #pdf .lbl{font-variant-numeric:tabular-nums}
+/* área fora da tela onde cada folha é copiada para virar página do PDF */
+.cap{position:fixed;left:-20000px;top:0;width:1600px;height:900px;z-index:-1;pointer-events:none;opacity:1}
+.cap .sheet{position:relative;left:0;top:0;transform:none!important;filter:none!important;box-shadow:none;transition:none!important;animation:none!important}
+.cap .idx-no{display:none}
+.cap .rv,.cap .pop,.cap .mask>span{opacity:1!important;transform:none!important;transition:none!important}
+.cap .draw{stroke-dashoffset:0!important;transition:none!important}
+.cap .ring{background:var(--red)}
+.cap .coupon{-webkit-mask:none;mask:none}
+.cap .hl{box-shadow:none;background:linear-gradient(transparent 62%,var(--sun) 62%,var(--sun) 94%,transparent 94%)}
+.cap .ink .hl,.cap .red .hl{background:none}
 .bar .ct{padding:0 10px;font-variant-numeric:tabular-nums;letter-spacing:.08em;color:rgba(255,252,247,.8)}
 .bar svg{width:18px;height:18px}
 .prog{position:fixed;left:0;top:env(safe-area-inset-top,0px);height:4px;background:var(--sun);z-index:5;transition:width .9s var(--ease)}
@@ -596,6 +623,7 @@ h2 .script,h1 .script{white-space:nowrap}
   <span class="ct" id="ct">01 / 18</span>
   <button id="next" aria-label="Próximo slide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg></button>
   <button id="idx" aria-pressed="false" aria-label="Índice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="lbl">Índice</span></button>
+  <button id="pdf" aria-label="Baixar em PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M4 19h16"/></svg><span class="lbl">PDF</span></button>
   <button id="fs" aria-label="Tela cheia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </nav>
 
@@ -683,6 +711,65 @@ document.getElementById('prev').onclick=()=>go(cur-1);
 document.getElementById('next').onclick=()=>go(cur+1);
 ib.onclick=toggleIndex;
 document.getElementById('fs').onclick=()=>{const d=document;try{if(d.fullscreenElement)d.exitFullscreen();else d.documentElement.requestFullscreen().catch(()=>{})}catch(e){}};
+
+/* ---------- baixar em PDF ---------- */
+const pdfBtn=document.getElementById('pdf'),pdfLbl=pdfBtn.querySelector('.lbl');
+const LIBS={h2c:'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+            jspdf:'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'};
+function loadLib(src){
+  return new Promise((ok,fail)=>{
+    if([...document.scripts].some(s=>s.src===src))return ok();
+    const el=document.createElement('script');el.src=src;el.async=true;
+    el.onload=()=>ok();el.onerror=()=>fail(new Error('cdn'));
+    document.head.appendChild(el);
+  });
+}
+let exporting=false;
+async function exportPDF(){
+  if(exporting)return;
+  exporting=true;pdfBtn.disabled=true;
+  const label=pdfLbl.textContent;
+  let cap=null;
+  try{
+    pdfLbl.textContent='···';
+    await Promise.all([loadLib(LIBS.h2c),loadLib(LIBS.jspdf)]);
+    if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+    const jsPDF=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+    if(!jsPDF||!window.html2canvas)throw new Error('lib');
+    const doc=new jsPDF({orientation:'landscape',unit:'px',format:[W,H],compress:true});
+    cap=document.createElement('div');cap.className='cap';cap.setAttribute('aria-hidden','true');
+    document.body.appendChild(cap);
+    for(let i=0;i<N;i++){
+      pdfLbl.textContent=(i+1)+'/'+N;
+      const clone=sheets[i].cloneNode(true);
+      clone.classList.remove('pre','out','lift','cur');
+      clone.removeAttribute('aria-hidden');
+      cap.replaceChildren(clone);
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      const canvas=await html2canvas(clone,{scale:1.75,width:W,height:H,windowWidth:W,windowHeight:H,
+        backgroundColor:'#FFFCF7',logging:false,useCORS:true,imageTimeout:0});
+      if(i)doc.addPage([W,H],'landscape');
+      doc.addImage(canvas.toDataURL('image/jpeg',0.9),'JPEG',0,0,W,H,undefined,'FAST');
+    }
+    const blob=doc.output('blob'),name='guia-de-bolso-sp-bairros.pdf';
+    let saver=null;
+    try{saver=(window.claude&&window.claude.use)?await window.claude.use('downloads'):null}catch(e){saver=null}
+    if(saver){try{await saver.save({filename:name,data:blob})}catch(e){}}
+    else{
+      const url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),10000);
+    }
+    pdfLbl.textContent=label;
+  }catch(e){
+    pdfLbl.textContent='erro';
+    setTimeout(()=>{pdfLbl.textContent=label},2500);
+  }finally{
+    if(cap)cap.remove();
+    pdfBtn.disabled=false;exporting=false;
+  }
+}
+pdfBtn.onclick=exportPDF;
 sheets.forEach((s,i)=>s.addEventListener('click',()=>{if(mode==='index'||i!==cur)go(i)}));
 addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey)return;
@@ -744,3 +831,6 @@ resize();ui();reveal(cur,150);
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(draw);
 })();
 </script>
+
+</body>
+</html>
